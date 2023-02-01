@@ -1,24 +1,22 @@
 # Import des librairies
-import numpy as np
-import pandas as p
 import pickle
-from bs4 import BeautifulSoup
-
-# Tokenizer
+import re
+from collections import Counter
+import pandas as pd
 import nltk
-from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+# Tokenizer
+from nltk.tokenize import word_tokenize
+
 
 # Nettoyage
-def remove_code(html):
-    # parse html content
-    soup = BeautifulSoup(html, "html.parser")
-    for data in soup(['style', 'script']):
-        # Remove tags
-        data.decompose()
-        # return data by retrieving the tag content
-    return soup.stripped_strings
+
+def preserve_csharpcplusplus(text):
+    # Replace c# with csharp
+    text = text.replace("c#", "csharp")
+    text = text.replace("c++", "cplusplus")
+    return text
 
 def regex(text):
     # Remove html tags
@@ -32,7 +30,7 @@ def regex(text):
     # Remove unicode characters
     text = text.encode("ascii", "ignore").decode()
     # Remove irrelevant characters
-    text = re.sub(r'[^a-zA-Z]', ' ', text)
+    text = re.sub(r'[^a-zA-Z]', ' ', text)  # keeping the "#" for c# add "#" after the last Z
     # Remove English contractions
     text = re.sub("\'\w+", '', text)
     # Remove extra spaces
@@ -46,8 +44,6 @@ def regex(text):
     text = text.replace('\n', '')
 
     return text
-
-
 def remov_duplicates(input):
     # split input string separated by space
     input = input.split(" ")
@@ -62,66 +58,55 @@ def remov_duplicates(input):
 
     return s
 
-def tokenizer_fct(sentence) :
+def tokenizer_fct(sentence):
     # print(sentence)
     sentence_clean = sentence.replace('-', ' ').replace('+', ' ').replace('/', ' ').replace('#', ' ')
     word_tokens = word_tokenize(sentence_clean)
     return word_tokens
+
 # Stop words
+from nltk.corpus import stopwords
 stop_w = list(set(stopwords.words('english'))) + ['[', ']', ',', '.', ':', '?', '(', ')']
 
-def stop_word_filter_fct(list_words) :
+def stop_word_filter_fct(list_words):
     filtered_w = [w for w in list_words if not w in stop_w]
     filtered_w2 = [w for w in filtered_w if len(w) > 2]
     return filtered_w2
 
-# lower case et alpha
-def lower_start_fct(list_words) :
-    lw = [w.lower() for w in list_words if (not w.startswith("@"))
-                                       and (not w.startswith("#"))
-                                       and (not w.startswith("http"))]
-    return lw
+# Keep only nouns
+def filtering_nouns(tokens):
+    res = nltk.pos_tag(tokens)
+    res = [token[0] for token in res if token[1] == 'NN']
+    return res
 
-# Remove single character
-def remove_single_char_func(text, threshold=1):
-    threshold = threshold
-    words = word_tokenize(text)
-    text = ''.join([w for w in words if len(w) > threshold])
-    return text
-
-def lemma_fct(list_words) :
+def lemma_fct(list_words):
     lemmatizer = WordNetLemmatizer()
     lem_w = [lemmatizer.lemmatize(w) for w in list_words]
     return lem_w
 
-def transform_bow_fct(desc_text) :
-    text_regex = regex(desc_text.lower())
+
+def transform_bow_fct(desc_text):
+    convert_csharp_cplusplus = preserve_csharpcplusplus(desc_text.lower())
+    text_regex = regex(convert_csharp_cplusplus)
     text_remove_duplicated = remov_duplicates(text_regex)
     word_tokens = tokenizer_fct(text_remove_duplicated)
     sw = stop_word_filter_fct(word_tokens)
-    lem_w = lemma_fct(sw)
-    transf_desc_text = ' '.join(lem_w)
-    return transf_desc_text
+    noun_txt = filtering_nouns(sw)
+    lem_w = lemma_fct(noun_txt)
+    return lem_w
 
 #### Les modeles:
 
 class LdaModel:
 
     def __init__(self):
-        filename_model = "./models/lda_model.pkl"
-        filename_dictionary = "./models/dictionary.pkl"
+        filename_model = "application/models/lda_model.pkl"
+        filename_dictionary = "application/models/dictionary.pkl"
         self.model = pickle.load(open(filename_model, 'rb'))
         self.dictionary = pickle.load(open(filename_dictionary, 'rb'))
 
     def predict_tags(self, text):
-        """
-        Predict tags of a preprocessed text
 
-        Args:
-            text(list): preprocessed text
-        Returns:
-            res(list): list of tags
-        """
         corpus_new = self.dictionary.doc2bow(text)
         topics = self.model.get_document_topics(corpus_new)
 
@@ -145,17 +130,17 @@ class LdaModel:
 class SupervisedModel:
 
     def __init__(self):
-        filename_supervised_model = "./models/logit_model.pkl"
-        filename_tfidf_model = "./models/tfidf_model.pkl"
-        filename_mlb_model = "./models/mlb_model.pkl"
+        filename_supervised_model = "application/models/logit_model.pkl"
+        filename_tfidf_model = "application/models/tfidf_model.pkl"
+        filename_mlb_model = "application/models/mlb_model.pkl"
 
         self.supervised_model = pickle.load(open(filename_supervised_model, 'rb'))
         self.tfidf_model = pickle.load(open(filename_tfidf_model, 'rb'))
         self.mlb_model = pickle.load(open(filename_mlb_model, 'rb'))
+
     def predict_tags(self, text):
         """
         Predict tags according to a lemmatized text using a supervied model.
-
         Args:
             supervised_model(): Used mode to get prediction
             mlb_model(): Used model to detransform
@@ -171,4 +156,3 @@ class SupervisedModel:
         res = [tag for tag in res if tag in text]
 
         return res
-
