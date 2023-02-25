@@ -6,7 +6,6 @@ import pandas as pd
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-# Tokenizer
 from nltk.tokenize import word_tokenize
 
 
@@ -65,7 +64,6 @@ def tokenizer_fct(sentence):
     return word_tokens
 
 # Stop words
-from nltk.corpus import stopwords
 stop_w = list(set(stopwords.words('english'))) + ['[', ']', ',', '.', ':', '?', '(', ')']
 
 def stop_word_filter_fct(list_words):
